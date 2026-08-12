@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Trajectory Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0B1220;
+    --panel: #131C2E;
+    --panel-2: #0F1729;
+    --border: #223050;
+    --text: #E8ECF4;
+    --muted: #7C8AA8;
+    --gold: #D4A24C;
+    --cyan: #6FE3D9;
+    --burn: #E8593A;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:transparent;color:var(--text);font-family:'Inter',sans-serif;}
+  .app{
+    min-height:100vh;
+    background:
+      radial-gradient(ellipse at 20% -10%, #16213a 0%, transparent 55%),
+      radial-gradient(ellipse at 100% 110%, #0d1830 0%, transparent 50%),
+      var(--bg);
+    padding:28px;
+    position:relative;
+    overflow:hidden;
+  }
+  #stars{position:absolute; inset:0; pointer-events:none;}
+  .header{
+    position:relative;
+    z-index:2;
+    margin-bottom:22px;
+  }
+  .eyebrow{
+    font-family:'Space Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.22em;
+    color:var(--gold);
+    text-transform:uppercase;
+    margin-bottom:8px;
+  }
+  h1{
+    font-family:'Space Mono',monospace;
+    font-weight:700;
+    font-size:clamp(24px,4vw,36px);
+    margin:0 0 6px 0;
+    letter-spacing:0.01em;
+  }
+  .sub{color:var(--muted); font-size:14px; max-width:640px; line-height:1.5;}
+  .grid{
+    position:relative;
+    z-index:2;
+    display:grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap:20px;
+    align-items:start;
+  }
+  @media (max-width: 860px){ .grid{grid-template-columns:1fr;} }
+
+  .panel{
+    background:linear-gradient(180deg, var(--panel), var(--panel-2));
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:18px;
+  }
+  .viz-panel{padding:8px;}
+  .panel-title{
+    font-family:'Space Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.14em;
+    color:var(--muted);
+    text-transform:uppercase;
+    padding:10px 12px 4px 12px;
+  }
+  svg{width:100%; height:auto; display:block;}
+
+  .row{margin-bottom:18px;}
+  .row:last-child{margin-bottom:0;}
+  .label-line{
+    display:flex; justify-content:space-between; align-items:baseline;
+    margin-bottom:6px;
+  }
+  .label{font-size:12.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;}
+  .value{font-family:'Space Mono',monospace; font-size:13px; color:var(--cyan);}
+  input[type=range]{
+    -webkit-appearance:none; width:100%; height:3px; border-radius:2px;
+    background:var(--border); outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
+    background:var(--gold); cursor:pointer; border:2px solid #0B1220;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:14px; height:14px; border-radius:50%;
+    background:var(--gold); cursor:pointer; border:2px solid #0B1220;
+  }
+
+  .segmented{
+    display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden;
+  }
+  .segmented button{
+    flex:1; background:transparent; border:none; color:var(--muted);
+    font-family:'Space Mono',monospace; font-size:12px; letter-spacing:0.08em;
+    padding:9px 6px; cursor:pointer; text-transform:uppercase;
+  }
+  .segmented button.active{background:var(--gold); color:#0B1220; font-weight:700;}
+
+  .telemetry{
+    display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px;
+  }
+  .tcard{
+    border:1px solid var(--border); border-radius:8px; padding:10px 12px;
+    background:rgba(255,255,255,0.02);
+  }
+  .tcard .tlabel{font-size:10.5px; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase;}
+  .tcard .tval{font-family:'Space Mono',monospace; font-size:17px; color:var(--text); margin-top:4px;}
+  .tcard .tval span{font-size:11px; color:var(--muted); margin-left:3px;}
+  .tcard.hi .tval{color:var(--gold);}
+
+  .engage{
+    width:100%; margin-top:16px;
+    background:transparent; border:1px solid var(--gold); color:var(--gold);
+    font-family:'Space Mono',monospace; font-size:12.5px; letter-spacing:0.12em;
+    text-transform:uppercase; padding:11px; border-radius:8px; cursor:pointer;
+    transition:background 0.15s, color 0.15s;
+  }
+  .engage:hover{background:var(--gold); color:#0B1220;}
+  .engage:focus-visible, button:focus-visible, input:focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+
+  .burn-label{
+    font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:0.06em;
+    fill:var(--burn);
+  }
+  .orbit-note{
+    font-size:11px; color:var(--muted); text-align:center; margin-top:6px;
+  }
+  .pulse{ animation: pulse 1.4s ease-in-out infinite; transform-origin:center; }
+  @keyframes pulse{
+    0%,100%{opacity:1; r:4;}
+    50%{opacity:0.4; r:6.5;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .pulse{ animation:none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <svg id="stars" width="100%" height="100%"></svg>
+
+  <div class="header">
+    <div class="eyebrow">Orbital Mechanics · Hohmann Transfer</div>
+    <h1>Trajectory Planner</h1>
+    <div class="sub">Set a departure orbit and a target orbit around a central body. The planner computes the two-burn transfer: delta-v budget and time of flight.</div>
+  </div>
+
+  <div class="grid">
+    <div class="panel viz-panel">
+      <div class="panel-title">Transfer Geometry <span id="notToScale" style="float:right; text-transform:none; letter-spacing:0;">(not to scale)</span></div>
+      <svg id="orbitSvg" viewBox="0 0 760 520"></svg>
+      <div class="orbit-note" id="orbitNote"></div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <div class="row">
+          <div class="label-line"><span class="label">Central Body</span></div>
+          <div class="segmented">
+            <button id="btnEarth" class="active">Earth</button>
+            <button id="btnMoon">Moon</button>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="label-line">
+            <span class="label">Departure altitude</span>
+            <span class="value" id="alt1Val"></span>
+          </div>
+          <input type="range" id="alt1" step="10">
+        </div>
+
+        <div class="row">
+          <div class="label-line">
+            <span class="label">Target altitude</span>
+            <span class="value" id="alt2Val"></span>
+          </div>
+          <input type="range" id="alt2" step="10">
+        </div>
+
+        <button class="engage" id="engageBtn">Engage Transfer</button>
+
+        <div class="telemetry">
+          <div class="tcard hi">
+            <div class="tlabel">Burn 1 (Δv1)</div>
+            <div class="tval" id="dv1">–<span>m/s</span></div>
+          </div>
+          <div class="tcard hi">
+            <div class="tlabel">Burn 2 (Δv2)</div>
+            <div class="tval" id="dv2">–<span>m/s</span></div>
+          </div>
+          <div class="tcard">
+            <div class="tlabel">Total Δv</div>
+            <div class="tval" id="dvTotal">–<span>m/s</span></div>
+          </div>
+          <div class="tcard">
+            <div class="tlabel">Time of flight</div>
+            <div class="tval" id="tof">–<span>h</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const bodies = {
+  earth: { name:'Earth', mu:398600.4418, radius:6371,
+    alt1:{min:160,max:2000,def:300}, alt2:{min:2000,max:42000,def:35786} },
+  moon:  { name:'Moon', mu:4902.8, radius:1737.4,
+    alt1:{min:20,max:300,def:100}, alt2:{min:300,max:5000,def:1800} }
+};
+
+let state = { bodyKey:'earth', alt1:300, alt2:35786, playing:false, t0:null, duration:6000 };
+
+const svg = document.getElementById('orbitSvg');
+const NS = 'http://www.w3.org/2000/svg';
+
+function el(tag, attrs){
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+function computeTransfer(mu, r1, r2){
+  const rp = Math.min(r1,r2), ra = Math.max(r1,r2);
+  const a = (rp+ra)/2;
+  const c = a - rp;
+  const b = Math.sqrt(rp*ra);
+  const e = c/a;
+  const v1 = Math.sqrt(mu/r1);
+  const v2 = Math.sqrt(mu/r2);
+  const vtp = Math.sqrt(mu*(2/rp - 1/a));
+  const vta = Math.sqrt(mu*(2/ra - 1/a));
+  const vAtR1 = (r1===rp) ? vtp : vta;
+  const vAtR2 = (r2===rp) ? vtp : vta;
+  const dv1 = vAtR1 - v1;
+  const dv2 = v2 - vAtR2;
+  const dvTotal = Math.abs(dv1) + Math.abs(dv2);
+  const transferTimeSec = Math.PI * Math.sqrt(Math.pow(a,3)/mu);
+  const ascending = r2 > r1;
+  return {a,b,c,e,rp,ra,v1,v2,dv1,dv2,dvTotal,transferTimeSec,ascending};
+}
+
+function solveKepler(M, e){
+  let E = M;
+  for(let i=0;i<8;i++){
+    E = E - (E - e*Math.sin(E) - M)/(1 - e*Math.cos(E));
+  }
+  return E;
+}
+
+// --- starfield ---
+function drawStars(){
+  const s = document.getElementById('stars');
+  s.setAttribute('viewBox','0 0 1000 1000');
+  s.setAttribute('preserveAspectRatio','none');
+  for(let i=0;i<90;i++){
+    const cx = Math.random()*1000, cy = Math.random()*1000;
+    const r = Math.random()*1.3 + 0.2;
+    const op = Math.random()*0.6 + 0.15;
+    const dot = el('circle',{cx,cy,r,fill:'#ffffff',opacity:op.toFixed(2)});
+    s.appendChild(dot);
+  }
+}
+drawStars();
+
+let anim = null;
+
+function render(){
+  const bd = bodies[state.bodyKey];
+  const r1 = bd.radius + state.alt1;
+  const r2 = bd.radius + state.alt2;
+  const T = computeTransfer(bd.mu, r1, r2);
+
+  // scale to fit
+  const maxR = Math.max(r1, r2);
+  const drawMax = 235;
+  const scale = drawMax / maxR;
+  const cx = 300, cy = 260;
+
+  const bodyDrawR = Math.max(bd.radius*scale, bd.name==='Earth' ? 16 : 11);
+
+  while(svg.firstChild) svg.removeChild(svg.firstChild);
+
+  // central body
+  const grad = el('radialGradient',{id:'bodyGrad'});
+  grad.appendChild(el('stop',{offset:'0%','stop-color': bd.name==='Earth' ? '#4a7fd6' : '#9aa3ad'}));
+  grad.appendChild(el('stop',{offset:'100%','stop-color': bd.name==='Earth' ? '#1c3a70' : '#565d66'}));
+  const defs = el('defs',{});
+  defs.appendChild(grad);
+  svg.appendChild(defs);
+
+  svg.appendChild(el('circle',{cx,cy,r:bodyDrawR,fill:'url(#bodyGrad)', stroke:'#2a3a5c','stroke-width':1}));
+  const bodyLabel = el('text',{x:cx, y:cy+bodyDrawR+16, 'text-anchor':'middle', fill:'#7C8AA8','font-size':10,'font-family':'Space Mono, monospace'});
+  bodyLabel.textContent = bd.name.toUpperCase();
+  svg.appendChild(bodyLabel);
+
+  // departure & target circular orbits
+  svg.appendChild(el('circle',{cx,cy,r:r1*scale, fill:'none', stroke:'#6FE3D9','stroke-width':1.2,'stroke-dasharray':'3 4', opacity:0.75}));
+  svg.appendChild(el('circle',{cx,cy,r:r2*scale, fill:'none', stroke:'#D4A24C','stroke-width':1.2,'stroke-dasharray':'3 4', opacity:0.75}));
+
+  // transfer ellipse path (upper half, focus at origin -> translate)
+  const a = T.a*scale, b = T.b*scale, c = T.c*scale;
+  // ellipse center offset from focus(cx,cy): center_x = cx - c  (periapsis at +x side)
+  const ecx = cx - c;
+  let pathPts = [];
+  const N = 64;
+  for(let i=0;i<=N;i++){
+    const E = Math.PI * i/N;
+    const x = ecx + a*Math.cos(E);
+    const y = cy - b*Math.sin(E); // minus to draw upper half visually "up"
+    pathPts.push(x.toFixed(2)+','+y.toFixed(2));
+  }
+  const path = el('path',{d:'M '+pathPts.join(' L '), fill:'none', stroke:'#D4A24C','stroke-width':2, opacity:0.9});
+  svg.appendChild(path);
+
+  // burn markers: periapsis (E=0) at (ecx+a, cy); apoapsis (E=pi) at (ecx-a, cy)
+  const periX = ecx + a, apoX = ecx - a;
+  const departX = T.ascending ? periX : apoX;
+  const arriveX = T.ascending ? apoX : periX;
+
+  function burnMarker(x, y, label, isPulse){
+    const g = el('g',{});
+    const dot = el('circle',{cx:x, cy:y, r:4, fill:'#E8593A'});
+    if(isPulse) dot.setAttribute('class','pulse');
+    g.appendChild(dot);
+    const t = el('text',{x:x, y: y<cy ? y-10 : y+18, 'text-anchor':'middle', class:'burn-label'});
+    t.textContent = label;
+    g.appendChild(t);
+    svg.appendChild(g);
+  }
+  burnMarker(departX, cy, '◆ BURN 1', false);
+  burnMarker(arriveX, cy, '◆ BURN 2', false);
+
+  // legend
+  const legendY = 500;
+  const legend = [
+    {c:'#6FE3D9', label:'Departure orbit', x:20},
+    {c:'#D4A24C', label:'Target orbit / transfer', x:190},
+  ];
+  legend.forEach(l=>{
+    svg.appendChild(el('line',{x1:l.x, y1:legendY, x2:l.x+18, y2:legendY, stroke:l.c,'stroke-width':2}));
+    const t = el('text',{x:l.x+24, y:legendY+4, fill:'#7C8AA8','font-size':10.5,'font-family':'Inter, sans-serif'});
+    t.textContent = l.label;
+    svg.appendChild(t);
+  });
+
+  // spacecraft marker (position updated by animate loop)
+  const craft = el('circle',{cx:departX, cy:cy, r:5, fill:'#E8ECF4', stroke:'#6FE3D9','stroke-width':1.5, id:'craft'});
+  svg.appendChild(craft);
+
+  // update telemetry
+  document.getElementById('dv1').innerHTML = Math.abs(T.dv1*1000).toFixed(0)+'<span>m/s</span>';
+  document.getElementById('dv2').innerHTML = Math.abs(T.dv2*1000).toFixed(0)+'<span>m/s</span>';
+  document.getElementById('dvTotal').innerHTML = (T.dvTotal*1000).toFixed(0)+'<span>m/s</span>';
+  document.getElementById('tof').innerHTML = (T.transferTimeSec/3600).toFixed(2)+'<span>h</span>';
+
+  document.getElementById('orbitNote').textContent =
+    `Central body radius drawn oversized for visibility · periapsis ${T.rp.toFixed(0)} km · apoapsis ${T.ra.toFixed(0)} km`;
+
+  return {T, scale, cx, cy, ecx, a, b, departFromPeri:T.ascending};
+}
+
+let current = render();
+
+function animateTransfer(){
+  if(anim) cancelAnimationFrame(anim);
+  const start = performance.now();
+  const dur = current.T.transferTimeSec > 0 ? 5200 : 1;
+  const craft = document.getElementById('craft');
+  function step(now){
+    const frac = Math.min((now-start)/dur, 1);
+    const e = current.T.e;
+    let M = current.departFromPeri ? Math.PI*frac : Math.PI*(1-frac);
+    const E = solveKepler(M, e);
+    const x = current.ecx + current.a*Math.cos(E);
+    const y = current.cy - current.b*Math.sin(E);
+    craft.setAttribute('cx', x.toFixed(2));
+    craft.setAttribute('cy', y.toFixed(2));
+    if(frac < 1){
+      anim = requestAnimationFrame(step);
+    }
+  }
+  anim = requestAnimationFrame(step);
+}
+
+function setupSliders(){
+  const bd = bodies[state.bodyKey];
+  const alt1 = document.getElementById('alt1');
+  const alt2 = document.getElementById('alt2');
+  alt1.min = bd.alt1.min; alt1.max = bd.alt1.max; alt1.value = state.alt1;
+  alt2.min = bd.alt2.min; alt2.max = bd.alt2.max; alt2.value = state.alt2;
+  document.getElementById('alt1Val').textContent = state.alt1.toLocaleString()+' km';
+  document.getElementById('alt2Val').textContent = state.alt2.toLocaleString()+' km';
+}
+
+document.getElementById('alt1').addEventListener('input', e=>{
+  state.alt1 = parseInt(e.target.value);
+  document.getElementById('alt1Val').textContent = state.alt1.toLocaleString()+' km';
+  current = render();
+});
+document.getElementById('alt2').addEventListener('input', e=>{
+  state.alt2 = parseInt(e.target.value);
+  document.getElementById('alt2Val').textContent = state.alt2.toLocaleString()+' km';
+  current = render();
+});
+
+function switchBody(key){
+  state.bodyKey = key;
+  const bd = bodies[key];
+  state.alt1 = bd.alt1.def;
+  state.alt2 = bd.alt2.def;
+  document.getElementById('btnEarth').classList.toggle('active', key==='earth');
+  document.getElementById('btnMoon').classList.toggle('active', key==='moon');
+  setupSliders();
+  current = render();
+}
+document.getElementById('btnEarth').addEventListener('click', ()=>switchBody('earth'));
+document.getElementById('btnMoon').addEventListener('click', ()=>switchBody('moon'));
+document.getElementById('engageBtn').addEventListener('click', animateTransfer);
+
+setupSliders();
+current = render();
+</script>
+</body>
+</html>
