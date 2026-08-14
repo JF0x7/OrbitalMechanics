@@ -3,8 +3,6 @@
 
 A trajectory planner tool using Hohmann Transfer mechanic to move a space craft from earth to orbit and the moons orbit. 
 
-https://jf0x7.github.io/OrbitalMechanics//
-
 Key terminology: 
 
 Hohmann transfer is the most fuel-efficient way to move a spacecraft between two circular orbits around the same body, using just two engine burns.
